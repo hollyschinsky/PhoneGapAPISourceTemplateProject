@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no;" />
+        <meta charset="utf-8">
+            <link rel="stylesheet" href="styles.css" type="text/css" />
+            
+            <!-- iPad/iPhone specific css below, add after your main css >
+             <link rel="stylesheet" media="only screen and (max-device-width: 1024px)" href="ipad.css" type="text/css" />		
+             <link rel="stylesheet" media="only screen and (max-device-width: 480px)" href="iphone.css" type="text/css" />		
+             -->
+            <!-- If your application is targeting iOS BEFORE 4.0 you MUST put json2.js from http://www.JSON.org/json2.js into your www directory and include it here -->
+            <script type="text/javascript" charset="utf-8" src="../cordova-1.9.0.js"></script>
+            <script type="text/javascript">
+                var fileSystem = null;
+                var db = null;
+                var ta;
+                
+                function onBodyLoad() {
+                    document.addEventListener("deviceready", onDeviceReady, false);
+                    ta = document.getElementById('log');
+                }
+                
+                /* When this function is called, Cordova has been initialized and is ready to roll */
+                function onDeviceReady(){
+                    console.log("Ready");
+                    document.addEventListener("pause", onPause, false);
+                    document.addEventListener("resume", onResume, false);
+                    document.addEventListener("online", onOnline, false);
+                    document.addEventListener("offline", onOffline, false);
+                    document.addEventListener("backbutton", onBack, false);
+                    document.addEventListener("batterycritical", onBattCritical, false);
+                    document.addEventListener("batterylow", onBattLow, false);
+                    document.addEventListener("batterystatus", onBattStatus, false);
+                    document.addEventListener("menubutton", onMenu, false);
+                    document.addEventListener("searchbutton", onSearch, false);
+                    document.addEventListener("startcallbutton", onStartCall, false);
+                    document.addEventListener("endcallbutton", onEndCall, false);
+                    
+                    getFSAccess(); // setup access to file system for various functions
+                }
+                
+                function onPause() {
+                    console.log("\nPAUSE Event Fired!");
+                }
+                
+                function onResume() {
+                    console.log("\nRESUME Event Fired!");
+                }
+                function onStartCall() {
+                    console.log("\nStart Call Event Fired");
+                }
+                function onEndCall() {
+                    console.log("\nEND CALL Event Fired!");
+                }
+                
+                function onBackButton() {
+                    console.log("Back Button Clicked");
+                }
+                function onOnline() {
+                    console.log("\nONLINE Event Fired!");
+                }
+                function onOffline() {
+                    console.log("\nOFFLINE Event Fired!");
+                }
+                function onBack() {
+                    console.log("\nBACK Event Fired!");
+                }
+                function onMenu() {
+                    console.log("\nMENU Event Fired!");
+                }
+                function onSearch() {
+                    console.log("\nSEARCH Event Fired!");
+                }
+                
+                
+                ///////////// Audio Capture Functions ////////////
+                function captureAudio() {
+                    navigator.device.capture.captureAudio(onAudioSuccess, onError, {limit:2});
+                }
+                
+                function onAudioSuccess(mediaFiles) {
+                    var i, len;
+                    for (i = 0, len = mediaFiles.length; i < len; i += 1) {
+                        console.log(mediaFiles[i]);
+                        ta.value = "Created audio file named: " + mediaFiles[i].name +  "\nPath: " + mediaFiles[i].fullPath+'\n';
+                    }
+                }
+                
+                ///////////// Compass Functions ///////////
+                function getCompassInfo() {
+                    // Update compass every 3 seconds
+                    var options = { frequency: 3000 };
+                    navigator.compass.getCurrentHeading(onCompassSuccess, onError, options);
+                }
+                
+                function onCompassSuccess(heading) {
+                    ta.value = "Current Compass Heading (identifies the direction a device is pointing in degrees): " + heading.magneticHeading+'\n';
+                    console.log("\nCompass heading data " + print(heading)+'\n');
+                }
+                
+                ///////////// Accelerometer Functions //////////
+                function getAccelData() {
+                    navigator.accelerometer.getCurrentAcceleration(onAccelSuccess, onError);
+                }
+                
+                function onAccelSuccess(acceleration) {
+                    ta.value='Acceleration X: ' + acceleration.x + '\n' +
+                    'Acceleration Y: ' + acceleration.y + '\n' +
+                    'Acceleration Z: ' + acceleration.z + '\n' +
+                    'Timestamp: '      + acceleration.timestamp + '\n';
+                }
+                
+                ///////////// Camera Functions /////////
+                function capturePicture() {
+                    var options = { quality : 75,
+                        destinationType : Camera.DestinationType.DATA_URL,
+                        sourceType : Camera.PictureSourceType.CAMERA,
+                        allowEdit : true,
+                        encodingType: Camera.EncodingType.JPEG,
+                        targetWidth: 250,
+                        targetHeight: 250 };
+                    
+                    navigator.camera.getPicture(onCameraSuccess, onError, [options]);
+                }
+                
+                function onCameraSuccess(imageData) {
+                    var image = document.getElementById('myImage');
+                    ta.value="Image file created: " + imageData;
+                    image.src = imageData;
+                    image.style.display = "block";
+                }
+                
+                ///////////// Contact Functions //////////
+                function addContact() {
+                    var newName=prompt("Please enter contact name (firstname lastname format)","");
+                    if (newName==null ||  newName=="") {
+                        addContact();
+                    }
+                    else var myContact = navigator.contacts.create({"displayName": newName});
+                    console.log("Display Name " + myContact.displayName);
+                    
+                    var nn=prompt("Please enter nickname","");
+                    if (nn==null || nn=="") {
+                        addContact();
+                    }
+                    
+                    myContact.nickname = nn;
+                    var name = new ContactName();
+                    
+                    if (newName.indexOf(" ")>-1 && newName.indexOf(" ")<newName.length+1)
+                    {
+                        var fname = newName.substring(0,newName.indexOf(" "));
+                        console.log("Length of fname " + fname.length);
+                        
+                        var lname = newName.substring(newName.indexOf(" ")+1,newName.length);
+                        console.log("Length of lname " + lname.length);
+                        name.givenName = fname;
+                        name.familyName = lname;
+                        myContact.name = name;
+                        var phoneNumbers = [];
+                        phoneNumbers[0] = new ContactField('work', '777-555-1212', false);
+                        phoneNumbers[1] = new ContactField('mobile', '321-555-3232', true);
+                        phoneNumbers[2] = new ContactField('home', '514-555-9898', false);
+                        myContact.phoneNumbers = phoneNumbers;
+                        
+                        myContact.note = "This contact was created with PhoneGap.";
+                        myContact.save(onContactSuccess,onError);
+                    }
+                    else {
+                        alert("Enter first and last name with a space delimiter");
+                        addContact();
+                    }
+                }
+                
+                function onContactSuccess(contact) {
+                    ta.value = "New contact created - name " + contact.name.formatted+"\n";
+                    ta.value += "Nickname " + contact.nickname+"\n";
+                    for (var i=0; i<contact.phoneNumbers.length; i++) {
+                        ta.value+="Phone Number - type: "+ contact.phoneNumbers[i].type + "  "+contact.phoneNumbers[i].value+"\n";  
+                    }
+                    console.log(print(contact));
+                }
+                
+                function findContacts() {
+                    console.log("Finding contacts");
+                    var options = new ContactFindOptions();
+                    options.filter="";          // empty search string returns all contacts
+                    options.multiple=true;      // return multiple results
+                    //filter = ["*"];           // return all fields
+                    filter = ["displayName","name", "nickname", "phoneNumbers"]; // return only these fields
+                    navigator.contacts.find(filter, onFindSuccess, onFindError, options);
+                }
+                
+                function onFindError(contactError) {
+                    console.log(print(contactError));
+                }
+                
+                function onFindSuccess(contacts) {
+                    console.log("Find success - found " + contacts.length);
+                    ta.value="My Contact List...\n";
+                    for (var i=0; i<contacts.length; i++) {
+                        ta.value += "\nFormatted Name: " + contacts[i].name.formatted +" aka: " + contacts[i].nickname+"\n";
+                        if (contacts[i].phoneNumbers[0]!=null)
+                        ta.value+=contacts[i].phoneNumbers[0].type + ": " + contacts[i].phoneNumbers[0].value; 
+                        else if (contacts[i].phoneNumbers[1]!=null)
+                        ta.value+=contacts[i].phoneNumbers[1].type + ": " + contacts[i].phoneNumbers[1].value;
+                        
+                    }
+                };
+                
+                //////////// Connection Functions /////////
+                function checkConnection() {
+                    var networkState = navigator.network.connection.type;
+                    
+                    var states = {};
+                    states[Connection.UNKNOWN]  = 'Unknown connection';
+                    states[Connection.ETHERNET] = 'Ethernet connection';
+                    states[Connection.WIFI]     = 'WiFi connection';
+                    states[Connection.CELL_2G]  = 'Cell 2G connection';
+                    states[Connection.CELL_3G]  = 'Cell 3G connection';
+                    states[Connection.CELL_4G]  = 'Cell 4G connection';
+                    states[Connection.NONE]     = 'No network connection';
+                    ta.value = 'Connection type: ' + states[networkState];
+                }
+                
+                /////////// Notification Functions //////////
+                function showAlert() {
+                    navigator.notification.alert(
+                                                 'Sample alert',  // message
+                                                 alertDismissed,  // callback
+                                                 'My Alert',      // title
+                                                 'Exit'           // buttonName
+                                                 );
+                }
+                
+                function showConfirm() {
+                    navigator.notification.confirm(
+                                                   'You are the winner!',  // message
+                                                   onConfirm,              // callback to invoke with index of button pressed
+                                                   'Game Over',            // title
+                                                   'Restart,Exit'          // buttonLabels
+                                                   );
+                }
+                
+                function onConfirm(button) {
+                    console.log('You selected button ' + button);
+                }
+                
+                function alertDismissed() {
+                    console.log("Alert dismissed");
+                }
+                
+                /////////// Geolocation Functions //////////
+                function getGeolocationInfo() {
+                    var options = { maximumAge: 3000, timeout: 5000, enableHighAccuracy: true };
+                    navigator.geolocation.getCurrentPosition(onGeoSuccess, onError, [options]);
+                }
+                
+                function onGeoSuccess(position) {
+                    ta.value = 'Latitude: '          + position.coords.latitude          + '\n' +
+                    'Longitude: '         + position.coords.longitude         + '\n' +
+                    'Altitude: '          + position.coords.altitude          + '\n' +
+                    'Accuracy: '          + position.coords.accuracy          + '\n' +
+                    'Altitude Accuracy: ' + position.coords.altitudeAccuracy  + '\n' +
+                    'Heading: '           + position.coords.heading           + '\n' +
+                    'Speed: '             + position.coords.speed             + '\n' +
+                    'Timestamp: '         + new Date(position.timestamp)      + '\n';
+                }
+                
+                /////////// Device Functions //////////
+                function getDeviceInfo() {
+                    ta.value = 'Device Name: '     + device.name     + '\n' +
+                    'Cordova Version: '  + device.cordova + '\n' +
+                    'Device Platform: ' + device.platform + '\n' +
+                    'Device UUID: '     + device.uuid     + '\n' +
+                    'Device Version: '  + device.version  + '\n';
+                }
+                
+                /////////// File Functions //////////
+                function getFSAccess() {
+                    console.log("Trying to access file system\n\n");
+                    window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, onFSAccess, onError);
+                }
+                
+                function onFSAccess(fs) {
+                    console.log("Accessed filesystem\n");
+                    fileSystem = fs;
+                    
+                }
+                
+                function initiateFileReadWrite() {
+                    ta.value="File read write start...";
+                    fileSystem.root.getFile("readme.txt", {create: true, exclusive: false}, onFileEntry, onError);
+                }
+                
+                function onFileEntry(fileEntry) {
+                    console.log("Got File Entry " + print(fileEntry)+'\n\n');
+                    ta.value="Created file with path: " + fileEntry.fullPath+'\n';
+                    fileEntry.createWriter(onWrite, onError);
+                    fileEntry.file(onFile, onError);
+                }
+                
+                function onWrite(writer) {
+                    writer.onwrite = function(evt) {
+                        ta.value+="\nWriting text to file: " + evt.target.fileName+'\n\n';
+                        console.log("Write success! " + print(evt)+'\n\n');
+                    };
+                    writer.write("Text from my text file...");
+                    
+                }
+                
+                function onFile(file) {
+                    var reader = new FileReader();
+                    reader.onloadend = function(evt) {
+                        console.log("Read success " + print(evt)+'\n\n');
+                        console.log(evt.target.result);
+                        ta.value+="Reading in file with path: " + evt.target.fileName;
+                        ta.value+="\nFile contents: " + evt.target.result+'\n';
+                    };
+                    reader.readAsText(file);
+                }
+                
+                ////////// Audio Functions ////////
+                function createAudioFile() {
+                    console.log("Create audio file");
+                    fileSystem.root.getFile("myrecording.mp3", {create: true, exclusive: false}, onAudioFileCreate, onError);   
+                }
+                
+                function onAudioFileCreate(fileEntry) {
+                    console.log("Created Audio File Entry " + print(fileEntry));
+                    recordAudio(fileEntry);    
+                }
+                
+                ////////// Data Functions /////////
+                function storeData() {
+                    db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
+                    console.log("Create transaction");
+                    db.transaction(populateDB, onDBError, onDBSuccess);
+                }
+                
+                function populateDB(tx) {
+                    ta.value = "Populating Demo Database";
+                    tx.executeSql('DROP TABLE IF EXISTS DEMO');
+                    tx.executeSql('CREATE TABLE IF NOT EXISTS DEMO (id unique, data)');
+                    tx.executeSql('INSERT INTO DEMO (id, data) VALUES (1, "First row")');
+                    tx.executeSql('INSERT INTO DEMO (id, data) VALUES (2, "Second row")');
+                    tx.executeSql('INSERT INTO DEMO (id, data) VALUES (3, "Third row")');
+                    
+                }
+                
+                function onDBError(tx, err) {
+                    alert("Error processing SQL: " +err.message);
+                }
+                
+                
+                function onDBSuccess() {    
+                    ta.value+='\nPopulate Success\n';
+                    // Now let's query it
+                    db.transaction(queryDB, onDBError);
+                }
+                
+                function queryDB(tx) {
+                    ta.value+="\nQuerying database...\n";
+                    tx.executeSql('SELECT * FROM DEMO', [], querySuccess, onDBError);
+                }
+                
+                function querySuccess(tx, results) {
+                    ta.value+="\n# Returned rows = " + results.rows.length+'\n';
+                    for (var i=0; i<results.rows.length; i++) {
+                        ta.value+="Row result objects " + print(results.rows.item(i))+'\n';
+                    }
+                    // this will be true since it was a select statement and so rowsAffected was 0
+                    if (!resultSet.rowsAffected) {
+                        console.log('No rows affected!');
+                        return false;
+                    }
+                }
+                
+                
+                function onError(message) {
+                    alert('Error! ' + print(message));
+                }
+                
+                var print = function(o){
+                    var str='';
+                    for (var property in o){
+                        if (typeof o[property] == 'string'){
+                            str += property + ': ' + o[property]+'; </br>';
+                        } else{
+                            str += property + ': { </br>' + print(o[property]) + '}';
+                        }
+                    }
+                    return str;
+                }
+                //        var print = function(o){
+                //            var str='';
+                //            for (var property in o){
+                //                console.log("Property " + property + " Type " + typeof o[property]);
+                //                if (typeof o[property] != 'function'){
+                //
+                //                    if (typeof o[property] == 'string'){
+                //                        str += '\t'+property + ': \t' + o[property]+';\n';
+                //                    } else if (typeof o[property] =='object'){
+                //                        str += property + ': \n{' + print(o[property]) + '}\n';
+                //                    }
+                //                }
+                //
+                //
+                //            }
+                //            return str;
+                //}
+                function showSource() {
+                    sourceBox = document.getElementById("source-overlay");
+                    sourceBox.style.display = "block";
+                    sourceTxt = document.getElementById("sourceTxt");
+                    srcLbl = document.getElementById("srcLbl");
+                    srcLbl.value = "Accelerometer Source Code";
+                    sourceTxt.value = '///////////// Accelerometer Functions ////////// \n' +
+                    'function getAccelData() {  \n' +
+                    '    navigator.accelerometer.getCurrentAcceleration(onAccelSuccess, onError); \n' +
+                    '} \n' +
+                    '\n' +
+                    'function onAccelSuccess(acceleration) {\n' +
+                    '   ta.value=\'Acceleration X: \' + acceleration.x + \'\n\' \n' +
+                    '    \'Acceleration Y: \' + acceleration.y + \'\n' +
+                    '    \'Acceleration Z: \' + acceleration.z + \'\n' +
+                    '    \'Timestamp: \'      + acceleration.timestamp + \'\n';
+                    '}\n';
+                    
+                }
+                </script>
+            </head>
+    <body onload="onBodyLoad()">
+        <div class="title">
+            <label class="title" id="label1">PhoneGap API Explorer</label>
+        </div>
+        <div class="cols">
+            <div class="center">
+                
+                <ul id="list1" class="center">
+                    <li><button onclick="getAccelData()">Accelerometer</button>
+                        <button onclick="showSource()">source</button></li>
+                    <li><button onclick="captureAudio()">Audio</button></li>
+                    <li><button onclick="getCompassInfo()">Compass</button></li>
+                    <li><button onclick="addContact()">Add a Contact</button></li>
+                    <li><button onclick="findContacts()">Find All Contacts</button></li>
+                    <li><button onclick="capturePicture()">Picture</button></li>
+                </ul>
+            </div>
+            
+            <img id="myImage"/>
+            
+            <div class="center">
+                <ul id="list2" class="center">
+                    <li><button onclick="checkConnection()">Connection</button></li>
+                    <li><button onclick="initiateFileReadWrite()">File</button></li>
+                    <li><button onclick="storeData()">Database</button></li>
+                    <li><button onclick="getGeolocationInfo()">Geolocation</button></li>
+                    <li><button onclick="getDeviceInfo()">Device Info</button></li>
+                    <li><button onclick="showConfirm()">Notify</button></li>
+                </ul>
+            </div>
+        </div>
+        <br>
+        <div id="resultsLbl"><label>Results</label></div>
+        
+        
+        <div class="center">
+            <textarea id="log" contenteditable="false" class="center"></textarea>
+            <button id="btnClear" class="center" onclick='ta.value=""'>Clear</button>
+        </div>
+        
+        <div id="source-overlay"><h4 id="srcLbl">Source Code</h4></p><textarea id="sourceTxt"></textarea></div>
+    </body>
+</html>
